@@ -14,7 +14,7 @@ const App = () => {
       <Navbar />
 
       {/* Main content */}
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8 pt-24">
         <Routes>
           <Route path="/" element={<Home />} />
 

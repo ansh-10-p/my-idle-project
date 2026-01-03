@@ -23,3 +23,4 @@ const Toggle = ({ checked, onChange }) => {
 };
 
 export default Toggle;
+

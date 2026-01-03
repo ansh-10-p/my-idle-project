@@ -104,3 +104,4 @@ const History = ({ history, onDelete }) => {
 };
 
 export default History;
+

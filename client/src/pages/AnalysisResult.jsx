@@ -93,3 +93,4 @@ const AnalysisResult = ({ result, onSaveHistory }) => {
 };
 
 export default AnalysisResult;
+

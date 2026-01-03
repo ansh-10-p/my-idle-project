@@ -15,3 +15,4 @@ body {
 .glass {
   @apply bg-white/70 backdrop-blur border border-white/60 shadow-glass;
 }
+
