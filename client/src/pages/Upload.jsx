@@ -1,8 +1,11 @@
+import axios from 'axios';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import PageWrapper from '../components/PageWrapper';
 import CodeEditor from '../components/CodeEditor';
+
+const API_URL =import.meta.env.VITE_API_URL;
 
 const Upload = ({ onSaveDraft, dark }) => {
   const [code, setCode] = useState("// Paste or write your code here\nfunction greet() {\n  return 'hello';\n}");
@@ -10,19 +13,25 @@ const Upload = ({ onSaveDraft, dark }) => {
   const [showOptimized, setShowOptimized] = useState(true);
   const navigate = useNavigate();
 
-  const handleAnalyze = () => {
-    const mockResult = {
-      id: Date.now(),
-      language,
-      summary: 'Mock AI review completed.',
-      bugReport: ['Uncaught error if input is null.', 'Consider try/catch around async calls.'],
-      badPractices: ['Avoid var, prefer const/let.', 'Extract magic numbers to constants.'],
-      security: ['Validate user input on server.', 'Escape output to prevent XSS.'],
-      optimized: `function greet(name = 'world') {\n  return \`Hello, \${name}!\`;\n}`,
-    };
-    onSaveDraft(mockResult, { showOptimized, code });
+  const handleAnalyze = async () => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/ai/get-review`, // 👈 HTTP from .env USED HERE
+      {
+        code,
+        language,
+        showOptimized,
+      }
+    );
+
+    onSaveDraft(response.data, { showOptimized, code });
     navigate('/analysis');
-  };
+
+  } catch (error) {
+    console.error('Backend error:', error);
+  }
+};
+
 
   return (
     <PageWrapper>
