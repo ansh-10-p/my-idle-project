@@ -1,55 +1,78 @@
-import { useMemo, useRef, useState, useCallback } from "react";
-import Editor from "@monaco-editor/react";
+import { useMemo, useRef, useState, useEffect } from "react";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import clsx from "clsx";
 import {
-  HiOutlineArrowsExpand,
-  HiX,
-  HiOutlineClipboardCopy,
-  HiOutlineSparkles,
-} from "react-icons/hi";
-
-const LANGUAGES = [
-  { label: "JavaScript", value: "javascript" },
-  { label: "TypeScript / TSX", value: "typescript" },
-  { label: "Python", value: "python" },
-  { label: "Java", value: "java" },
-  { label: "C++", value: "cpp" },
-  { label: "HTML", value: "html" },
-  { label: "CSS", value: "css" },
-];
+  Maximize2,
+  Minimize2,
+  Copy,
+  Check,
+  Wand2,
+} from "lucide-react";
 
 const CodeEditor = ({
   code,
   onChange,
-  language,
-  onLanguageChange,
-  dark,
-  initialCode = "",
+  language = "javascript",
+  dark = true,
 }) => {
   const editorRef = useRef(null);
   const containerRef = useRef(null);
+  const monaco = useMonaco();
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
-  /* ---------------- Editor Options ---------------- */
+  /* ---------------- 1. Custom Theme ---------------- */
+  useEffect(() => {
+    if (monaco) {
+      monaco.editor.defineTheme("midnight-dev", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [],
+        colors: {
+          "editor.background": "#0f1623", 
+          "editor.lineHighlightBackground": "#1e293b",
+          "editorGutter.background": "#0f1623",
+          "scrollbarSlider.background": "#33415580",
+          "editor.selectionBackground": "#06b6d430",
+        },
+      });
+      monaco.editor.setTheme("midnight-dev");
+    }
+  }, [monaco]);
+
+  /* ---------------- 2. Editor Options ---------------- */
   const options = useMemo(
     () => ({
       minimap: { enabled: false },
+      fontFamily: '"Fira Code", "JetBrains Mono", monospace',
       fontSize: 14,
-      fontLigatures: true,
+      
+      // ✅ SCROLLING FIXES
+      scrollBeyondLastLine: false, // Prevents excessive empty space at bottom
       smoothScrolling: true,
-      cursorSmoothCaretAnimation: true,
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      formatOnPaste: true,
-      formatOnType: true,
-      bracketPairColorization: { enabled: true },
+      
+      // Force scrollbars to always be interactive
+      scrollbar: {
+        vertical: "visible",
+        horizontal: "visible",
+        useShadows: false,
+        verticalScrollbarSize: 14, // Slightly wider to make it easier to grab
+      },
+
+      cursorBlinking: "smooth",      
+      cursorSmoothCaretAnimation: "on", 
+      cursorStyle: "line",            
+      cursorWidth: 3,                
+      
+      automaticLayout: true, 
+      padding: { top: 16, bottom: 16 },
       renderLineHighlight: "all",
-      padding: { top: 12, bottom: 12 },
     }),
-    [],
+    []
   );
 
-  /* ---------------- Handlers ---------------- */
+  /* ---------------- 3. Handlers ---------------- */
   const handleMount = (editor) => {
     editorRef.current = editor;
   };
@@ -60,108 +83,92 @@ const CodeEditor = ({
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(code);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
 
     if (!document.fullscreenElement) {
-      await containerRef.current.requestFullscreen();
-      setIsFullscreen(true);
+      try {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {
+        console.error("Fullscreen error:", err);
+      }
     } else {
       await document.exitFullscreen();
       setIsFullscreen(false);
     }
   };
 
-  const resetCode = () => {
-    onChange(initialCode);
-  };
+  /* ---------------- 4. Force Layout Refresh ---------------- */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.layout();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [isFullscreen]);
 
   /* ---------------- UI ---------------- */
   return (
     <div
       ref={containerRef}
       className={clsx(
-        "relative space-y-3 rounded-2xl border bg-white shadow-sm",
-        "border-slate-200 dark:border-slate-700 dark:bg-slate-900",
-        isFullscreen && "fixed inset-0 z-50 rounded-none",
+        "relative flex flex-col overflow-hidden bg-[#0f1623] transition-all duration-300",
+        // 👇 FIXED: 
+        // Fullscreen: h-screen (100% of screen)
+        // Normal: h-[600px] (Fixed pixel height forces internal scrollbar)
+        isFullscreen 
+          ? "fixed inset-0 z-50 h-screen w-screen" 
+          : "h-[500px] w-full rounded-2xl border border-slate-800" 
       )}
     >
-      {/* Toolbar */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-2xl bg-white/90 px-4 py-3 backdrop-blur dark:bg-slate-900/90">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-slate-600 dark:text-slate-200">
-            Language
-          </span>
-
-          <select
-            value={language}
-            onChange={(e) => onLanguageChange(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800"
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ToolbarButton onClick={formatCode} label="Format">
-            <HiOutlineSparkles />
-          </ToolbarButton>
-
-          <ToolbarButton onClick={copyCode} label="Copy">
-            <HiOutlineClipboardCopy />
-          </ToolbarButton>
-
-          <ToolbarButton onClick={toggleFullscreen} label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-            {isFullscreen ? (
-              <HiX />
-            ) : (
-              <HiOutlineArrowsExpand />
-            )}
-          </ToolbarButton>
-        </div>
+      {/* Floating Toolbar */}
+      <div className="absolute right-6 top-4 z-20 flex items-center gap-1.5 rounded-lg border border-white/5 bg-[#151e32]/90 p-1 backdrop-blur-md shadow-xl transition-opacity hover:opacity-100 opacity-60">
+        <ToolbarButton onClick={formatCode} label="Format" icon={Wand2} />
+        <ToolbarButton onClick={copyCode} label={isCopied ? "Copied" : "Copy"} icon={isCopied ? Check : Copy} active={isCopied} />
+        <div className="mx-1 h-4 w-[1px] bg-white/10" />
+        <ToolbarButton onClick={toggleFullscreen} label={isFullscreen ? "Exit" : "Expand"} icon={isFullscreen ? Minimize2 : Maximize2} />
       </div>
 
-      {/* Editor */}
-      <div
-        className={clsx(
-          "overflow-hidden border-t border-slate-200 dark:border-slate-700",
-          isFullscreen ? "h-[calc(100vh-64px)]" : "h-[360px]",
-        )}
-      >
+      {/* Editor Surface */}
+      <div className="flex-1 w-full h-full">
         <Editor
           height="100%"
+          width="100%"
           language={language}
           value={code}
           onChange={(val) => onChange(val ?? "")}
           onMount={handleMount}
-          theme={dark ? "vs-dark" : "vs-light"}
+          theme="midnight-dev"
           options={options}
+          loading={
+            <div className="flex h-full items-center justify-center text-sm text-slate-500">
+              Initializing Editor...
+            </div>
+          }
         />
       </div>
     </div>
   );
 };
 
-/* ---------------- Toolbar Button ---------------- */
-const ToolbarButton = ({ onClick, children, label }) => (
+/* ---------------- Helper Component ---------------- */
+const ToolbarButton = ({ onClick, icon: Icon, label, active }) => (
   <button
     type="button"
     onClick={onClick}
-    title={label}
     className={clsx(
-      "inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition",
-      "border border-slate-200 bg-slate-100 text-slate-700 hover:-translate-y-0.5 hover:shadow",
-      "dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100",
+      "group relative flex items-center justify-center rounded-md p-2 transition-all",
+      active ? "bg-green-500/10 text-green-400" : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
     )}
+    title={label}
   >
-    {children}
-    <span className="hidden sm:inline">{label}</span>
+    <Icon className="h-4 w-4" />
   </button>
 );
 

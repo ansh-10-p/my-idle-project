@@ -1,39 +1,57 @@
 const { GoogleGenAI } = require("@google/genai");
 
-// 1. Initialize the client with your API key
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-/**
- * Service function to interact with Gemini
- * @param {string} prompt - The user's code to review
- */
-async function generateContent(prompt) {
+async function generateReview(code, systemPrompt, jsonSchema) {
   try {
-    // 2. Pass instructions and prompt to the model
-    // Note: gemini-1.5-flash is the currently supported stable model
+    // 1. Try the Preview Model you found
+    const modelId = "gemini-3-flash-preview"; 
+
+    // 2. Configure the request
+    // We REMOVED 'thinkingConfig' because it breaks JSON parsing.
+    // We REMOVED 'stream' because your frontend waits for a full response.
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash", 
-      systemInstruction: `You are a senior software engineer. Perform a professional code review.
-        Identify bugs, security risks, and suggest improvements with code snippets.
-        Separate Critical Issues, Warnings, and Suggestions.`,
+      model: modelId,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: jsonSchema,
+      },
       contents: [
         {
           role: "user",
-          parts: [{ text: `Review the following code:\n\n${prompt}` }]
+          parts: [
+            { text: systemPrompt },
+            { text: `CODE TO REVIEW:\n\n${code}` }
+          ]
         }
       ]
     });
 
-    // 3. Return the text result to the controller
-    return result.text;
+    // 3. Handle the response
+    const candidates = result.candidates;
+
+    if (!candidates || candidates.length === 0) {
+      throw new Error("Gemini returned no response. (Model might be restricted)");
+    }
+
+    const responseText = candidates[0].content.parts[0].text;
+    
+    return JSON.parse(responseText);
 
   } catch (error) {
     console.error("AI Service Error:", error.message);
-    throw error; // Let the controller's catch block handle the response
+
+    // 4. Smart Fallback
+    // If 'gemini-3' fails (404), tell the user to switch back to 'gemini-2.0'
+    if (error.message.includes("404") || error.message.includes("not found")) {
+      console.error("\n⚠️ CRITICAL: 'gemini-3-flash-preview' is not available for your API Key yet.");
+      console.error("👉 PLEASE CHANGE 'modelId' to 'gemini-2.0-flash-exp' in aiService.js\n");
+    }
+
+    throw new Error("Failed to communicate with Gemini API");
   }
 }
 
-// 4. Export the function using CommonJS syntax
-module.exports = { generateContent };
+module.exports = { generateReview };
