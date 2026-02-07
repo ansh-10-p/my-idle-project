@@ -8,9 +8,7 @@ backend/.env
 
 # frontend env
 client/.env
-client/.env.local
-client/.env.development
-client/.env.production
+
 
 # dependencies
 node_modules/
